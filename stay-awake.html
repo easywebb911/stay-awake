@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stay Awake</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, sans-serif; background: #f5f5f0; color: #1a1a18; display: flex; justify-content: center; align-items: flex-start; min-height: 100vh; padding: 3rem 1.5rem; }
+  .wrap { max-width: 420px; width: 100%; }
+  h1 { font-size: 22px; font-weight: 500; margin-bottom: 2rem; text-align: center; }
+  .ring { width: 130px; height: 130px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-direction: column; margin: 0 auto 2rem; border: 3px solid #ccc; transition: all 0.4s; }
+  .ring.active { border-color: #1D9E75; background: #E1F5EE; }
+  .dot { width: 14px; height: 14px; border-radius: 50%; background: #ccc; margin-bottom: 10px; transition: background 0.3s; }
+  .dot.active { background: #1D9E75; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.4} }
+  .ring-label { font-size: 14px; color: #888; }
+  .ring-label.active { color: #0F6E56; }
+  .btn { width: 100%; padding: 16px; font-size: 17px; font-weight: 500; border-radius: 12px; cursor: pointer; border: 1px solid #ccc; background: #fff; color: #1a1a18; margin-bottom: 1.5rem; -webkit-tap-highlight-color: transparent; }
+  .btn.active { background: #E1F5EE; border-color: #1D9E75; color: #0F6E56; }
+  .info { background: #fff; border-radius: 12px; border: 1px solid #e8e8e4; overflow: hidden; margin-bottom: 1rem; }
+  .info-row { display: flex; justify-content: space-between; padding: 10px 16px; font-size: 14px; border-bottom: 1px solid #f0f0eb; }
+  .info-row:last-child { border-bottom: none; }
+  .info-row span:first-child { color: #888; }
+  .info-row span:last-child { font-weight: 500; }
+  .badge { display: inline-block; font-size: 12px; padding: 4px 10px; border-radius: 99px; margin-bottom: 1.25rem; }
+  .badge.video { background: #E6F1FB; color: #185FA5; }
+  .badge.off { background: #f0f0eb; color: #888; }
+  .log { font-size: 12px; color: #aaa; font-family: monospace; max-height: 120px; overflow-y: auto; background: #fff; border-radius: 8px; padding: 10px 12px; border: 1px solid #e8e8e4; }
+  .log div { padding: 1px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Stay Awake</h1>
+
+  <div class="ring" id="ring">
+    <div class="dot" id="dot"></div>
+    <div class="ring-label" id="ring-label">Inaktiv</div>
+  </div>
+
+  <button class="btn" id="btn" onclick="toggle()">Display wach halten</button>
+
+  <div style="text-align:center; margin-bottom:1rem">
+    <span class="badge off" id="badge">Nicht aktiv</span>
+  </div>
+
+  <div class="info">
+    <div class="info-row"><span>Status</span><span id="s-status">—</span></div>
+    <div class="info-row"><span>Methode</span><span id="s-method">—</span></div>
+    <div class="info-row"><span>Aktiv seit</span><span id="s-since">—</span></div>
+    <div class="info-row"><span>Laufzeit</span><span id="s-runtime">—</span></div>
+  </div>
+
+  <div class="log" id="log"></div>
+</div>
+
+<!-- winziges unsichtbares Video (NoSleep-Trick) -->
+<video id="nosleep-video"
+  loop
+  muted
+  playsinline
+  webkit-playsinline
+  style="position:fixed;width:1px;height:1px;opacity:0.01;top:0;left:0;pointer-events:none">
+</video>
+
+<script>
+// Base64-kodiertes winziges MP4 (~1.3KB) — identisch mit NoSleep.js
+const MP4_B64 = "data:video/mp4;base64,AAAAIGZ0eXBtcDQyAAACAGlzb21pc28yYXZjMW1wNDIAAAAIZnJlZQAAAs1tZGF0AAACrgYF//+q3EXpvebZSLeWLNgg2SPu73gyNjQgLSBjb3JlIDE0MiByMjQ3OSBkZDc5YTYxIC0gSC4yNjQvTVBFRy00IEFWQyBjb2RlYyAtIENvcHlsZWZ0IDIwMDMtMjAxNCAtIGh0dHA6Ly93d3cudmlkZW9sYW4ub3JnL3gyNjQuaHRtbCAtIG9wdGlvbnM6IGNhYmFjPTEgcmVmPTMgZGVibG9jaz0xOjA6MCBhbmFseXNlPTB4MzoweDExMyBtZT1oZXggc3VibWU9NyBwc3k9MSBwc3lfcmQ9MS4wMDowLjAwIG1peGVkX3JlZj0xIG1lX3JhbmdlPTE2IGNocm9tYV9tZT0xIHRyZWxsaXM9MSA4eDhkY3Q9MSBjcW09MCBkZWFkem9uZT0yMSwxMSBmYXN0X3Bza2lwPTEgY2hyb21hX3FwX29mZnNldD0tMiBmbj0wIGJmcmFtZXM9MyBiX3B5cmFtaWQ9MiBiX2FkYXB0PTEgYl9iaWFzPTAgZGlyZWN0PTEgd2VpZ2h0Yj0xIG9wZW5fZ29wPTAgd2VpZ2h0cD0yIGtleWludD0yNTAga2V5aW50X21pbj0yNSBzY2VuZWN1dD00MCBpbnRyYV9yZWZyZXNoPTAgcmNfbG9va2FoZWFkPTQwIHJjPWNyZiBtYnRyZWU9MSBjcmY9MjMuMCBxY29tcD0wLjYwIHFwbWluPTAgcXBtYXg9NjkgcXBzdGVwPTQgaXBfcmF0aW89MS40MCBhcT0xOjEuMDAAgAAAAFZliIQL8mKAAKvMnJycnJycnJycnJycnJycnJycnJycnJycnJycnJycnJycnJycnJycnJycnJycnJycnJycnJycnJycnJycnJycnJycnJycnJycnJycnJycnJycnAAAAAxBmiUYhBL/wgAAAwAAAwAAEiEjgQAAAAxBmkYYhBL/wgAAAwAAAwAAEiEjgQAAAAxBmmYYhBL/wgAAAwAAAwAAEiEjgQAAAAxBmooYhBL/wgAAAwAAAwAAEiEjgQAAAAxBmqoYhBL/wgAAAwAAAwAAEiEjgQAAAAxBmsoYhBL/wgAAAwAAAwAAEiEjgQAAAAxBmuoYhBL/wgAAAwAAAwAAEiEjgQAAAAxBmwoYhBL/wgAAAwAAAwAAEiEjgQAAAAxBmyoYhBL/wgAAAwAAAwAAEiEjgQAAAAxBm0oYhBL/wgAAAwAAAwAAEiEjgQAAAAxBm2oYhBL/wgAAAwAAAwAAEiEjgQAAAAxBm4oYhBL/wgAAAwAAAwAAEiEjgQAAAAxBm6oYhBL/wgAAAwAAAwAAEiEjgQAAAAxBm8oYhBL/wgAAAwAAAwAAEiEjgQAAAAxBm+oYhBL/wgAAAwAAAwAAEiEjgQAAAAxBnAoYhBL/wgAAAwAAAwAAEiEjgQAAAAxBnCoYhBL/wgAAAwAAAwAAEiEjgQAAAAxBnEoYhBL/wgAAAwAAAwAAEiEjgQAAAAxBnGoYhBL/wgAAAwAAAwAAEiEjgQAAAAxBnIoYhBL/wgAAAwAAAwAAEiEjgQAAAAxBnKoYhBL/wgAAAwAAAwAAEiEjgQ==";
+
+const video = document.getElementById('nosleep-video');
+let wakeLock = null;
+let active = false;
+let startTime = null;
+let timerInterval = null;
+
+function log(msg) {
+  const el = document.getElementById('log');
+  const t = new Date().toLocaleTimeString('de-DE', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  const d = document.createElement('div');
+  d.textContent = t + '  ' + msg;
+  el.prepend(d);
+}
+
+function setUI(on, method) {
+  document.getElementById('ring').className = 'ring ' + (on ? 'active' : '');
+  document.getElementById('dot').className = 'dot ' + (on ? 'active' : '');
+  document.getElementById('ring-label').className = 'ring-label ' + (on ? 'active' : '');
+  document.getElementById('ring-label').textContent = on ? 'Aktiv' : 'Inaktiv';
+  document.getElementById('btn').className = 'btn ' + (on ? 'active' : '');
+  document.getElementById('btn').textContent = on ? 'Deaktivieren' : 'Display wach halten';
+  document.getElementById('s-status').textContent = on ? 'Läuft' : '—';
+  document.getElementById('s-method').textContent = on ? (method || '—') : '—';
+  const badge = document.getElementById('badge');
+  if (on) { badge.className = 'badge video'; badge.textContent = method || 'Aktiv'; }
+  else { badge.className = 'badge off'; badge.textContent = 'Nicht aktiv'; }
+}
+
+function updateTimer() {
+  if (!active || !startTime) return;
+  const since = new Date(startTime).toLocaleTimeString('de-DE', {hour:'2-digit',minute:'2-digit'});
+  document.getElementById('s-since').textContent = since;
+  const secs = Math.floor((Date.now() - startTime) / 1000);
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  const s = secs % 60;
+  document.getElementById('s-runtime').textContent =
+    (h > 0 ? h + 'h ' : '') + m + 'min ' + String(s).padStart(2,'0') + 's';
+}
+
+async function enableWakeLock() {
+  if ('wakeLock' in navigator) {
+    try {
+      wakeLock = await navigator.wakeLock.request('screen');
+      wakeLock.addEventListener('release', () => log('Wake Lock freigegeben'));
+      return true;
+    } catch(e) {}
+  }
+  return false;
+}
+
+function enableVideo() {
+  const src = document.createElement('source');
+  src.src = MP4_B64;
+  src.type = 'video/mp4';
+  video.appendChild(src);
+  video.play().catch(e => log('Video-Fehler: ' + e.message));
+}
+
+async function toggle() {
+  if (!active) {
+    active = true;
+    startTime = Date.now();
+
+    const wlOk = await enableWakeLock();
+    enableVideo(); // immer aktiv, als Absicherung
+
+    const method = wlOk ? 'Wake Lock + Video' : 'Video-Loop';
+    setUI(true, method);
+    timerInterval = setInterval(updateTimer, 1000);
+    log('Gestartet — ' + method);
+  } else {
+    active = false;
+    if (wakeLock) { wakeLock.release(); wakeLock = null; }
+    video.pause();
+    video.innerHTML = '';
+    clearInterval(timerInterval);
+    setUI(false, null);
+    document.getElementById('s-since').textContent = '—';
+    document.getElementById('s-runtime').textContent = '—';
+    log('Gestoppt');
+  }
+}
+
+// Wake Lock nach Tab-Wechsel wiederherstellen
+document.addEventListener('visibilitychange', async () => {
+  if (active && document.visibilityState === 'visible') {
+    if (!wakeLock) {
+      const ok = await enableWakeLock();
+      if (ok) log('Wake Lock wiederhergestellt');
+    }
+    if (video.paused) video.play().catch(() => {});
+  }
+});
+</script>
+</body>
+</html>
